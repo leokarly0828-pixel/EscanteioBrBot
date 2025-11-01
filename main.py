@@ -54,7 +54,7 @@ async def enviar_ligas_periodicamente(app):
         await app.bot.send_message(chat_id=chat_id, text=msg)
         await asyncio.sleep(300)  # 5 minutos
 
-async def main():
+    async def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button))
