@@ -1,60 +1,69 @@
 import os
 import requests
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+import asyncio
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY")
 
-def get_main_leagues():
-    headers = {"x-apisports-key": FOOTBALL_API_KEY}
-    url = "https://v3.football.api-sports.io/leagues"
-    response = requests.get(url, headers=headers)
-    data = response.json()
-    leagues = []
-    for item in data.get("response", []):
-        league = item.get("league", {})
-        if league.get("type") == "League":
-            leagues.append(league.get("name"))
-    return leagues[:10]
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton("🔄 Atualizar Ligas", callback_data="update_leagues")]]
+    keyboard = [
+        [InlineKeyboardButton("Ver Ligas Principais 🌍", callback_data="ligas")],
+        [InlineKeyboardButton("Ajuda ℹ️", callback_data="ajuda")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        f"👋 Olá, {update.effective_user.first_name}! Eu sou o *EscanteioBrBot*, criado por Leonardo Lopes de Souza.\n\n"
-        "Envio as principais ligas do mundo a cada 5 minutos ⚽️",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
+    await update.message.reply_text("👋 Olá Leonardo! Eu sou o EscanteioBrBot.\nEscolha uma opção abaixo:", reply_markup=reply_markup)
 
-async def update_leagues(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    leagues = get_main_leagues()
-    message = "🌍 *Principais Ligas do Mundo:*\n\n" + "\n".join([f"- {l}" for l in leagues])
-    await update.callback_query.message.reply_text(message, parse_mode="Markdown")
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-async def auto_send(context: ContextTypes.DEFAULT_TYPE):
-    chat_ids = context.job.data
-    leagues = get_main_leagues()
-    message = "🌍 *Principais Ligas do Mundo:*\n\n" + "\n".join([f"- {l}" for l in leagues])
-    for chat_id in chat_ids:
-        await context.bot.send_message(chat_id=chat_id, text=message, parse_mode="Markdown")
+    if query.data == "ligas":
+        ligas = [
+            "🇧🇷 Brasileirão Série A",
+            "🏴 Premier League",
+            "🇪🇸 La Liga",
+            "🇮🇹 Serie A",
+            "🇩🇪 Bundesliga",
+            "🇫🇷 Ligue 1",
+            "🇵🇹 Liga Portugal",
+            "🇳🇱 Eredivisie"
+        ]
+        ligas_text = "\n".join(ligas)
+        await query.edit_message_text(f"⚽ Principais Ligas do Mundo (atualizadas a cada 5min):\n\n{ligas_text}")
+    elif query.data == "ajuda":
+        await query.edit_message_text("ℹ️ Enviarei atualizações automáticas sobre escanteios e ligas populares.\nUse /start para ver o menu novamente.")
 
-async def register_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if "chat_ids" not in context.bot_data:
-        context.bot_data["chat_ids"] = []
-    if chat_id not in context.bot_data["chat_ids"]:
-        context.bot_data["chat_ids"].append(chat_id)
-        await update.message.reply_text("✅ Você foi registrado para receber atualizações automáticas a cada 5 minutos!")
-        context.job_queue.run_repeating(auto_send, interval=300, first=5, data=context.bot_data["chat_ids"])
+async def enviar_ligas_periodicamente(app):
+    chat_id = os.getenv("CHAT_ID")  # Opcional: pode configurar depois
+    if not chat_id:
+        return
+    while True:
+        ligas = [
+            "🇧🇷 Brasileirão Série A",
+            "🏴 Premier League",
+            "🇪🇸 La Liga",
+            "🇮🇹 Serie A",
+            "🇩🇪 Bundesliga",
+            "🇫🇷 Ligue 1",
+            "🇵🇹 Liga Portugal",
+            "🇳🇱 Eredivisie"
+        ]
+        msg = "⚽ Atualização automática das ligas principais:\n\n" + "\n".join(ligas)
+        await app.bot.send_message(chat_id=chat_id, text=msg)
+        await asyncio.sleep(300)  # 5 minutos
 
-def main():
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+async def main():
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("registrar", register_chat))
-    app.add_handler(CallbackQueryHandler(update_leagues))
-    app.run_polling()
+    app.add_handler(CallbackQueryHandler(button))
+
+    # Inicia envio automático em background
+    asyncio.create_task(enviar_ligas_periodicamente(app))
+
+    print("🤖 Bot EscanteioBrBot iniciado com sucesso!")
+    await app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
